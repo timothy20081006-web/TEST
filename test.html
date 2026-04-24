@@ -348,7 +348,7 @@ window.addEventListener("mousedown", (e) => { if(e.target.tagName !== 'BUTTON') 
 window.addEventListener("touchstart", (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, {passive: false});
 // 1. 在 script 中加入這個發送函式
 function uploadRecord(finalData) {
-    const scriptURL = '你的 Google Apps Script 部署網址'; // 貼上剛剛複製的 URL
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbx3Z_y1_Px-_vNSJMUjVKfYq_s9ezkXteNy_Go63RHR8UfNGeUocaEzpDC0H8-2FQM/exec'; // 貼上剛剛複製的 URL
 
     fetch(scriptURL, {
         method: 'POST',
