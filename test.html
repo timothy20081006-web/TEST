@@ -346,6 +346,42 @@ function endTest() {
 
 window.addEventListener("mousedown", (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
 window.addEventListener("touchstart", (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, {passive: false});
+// 1. 在 script 中加入這個發送函式
+function uploadRecord(finalData) {
+    const scriptURL = '你的 Google Apps Script 部署網址'; // 貼上剛剛複製的 URL
+
+    fetch(scriptURL, {
+        method: 'POST',
+        mode: 'no-cors', // 這是為了避開跨網域問題
+        cache: 'no-cache',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalData)
+    })
+    .then(() => console.log("Data sent!"))
+    .catch(error => console.error('Error!', error.message));
+}
+
+// 2. 找到你的 endTest() 函式，在裡面計算完數據後加入呼叫
+function endTest() {
+    running = false; clearInterval(tickerId); bgm.pause();
+    const avg = reactionTimes.length ? (reactionTimes.reduce((a,b)=>a+b)/reactionTimes.length).toFixed(0) : "---";
+    
+    // 準備要發送的資料包
+    const finalData = {
+        score: targetScore,
+        hits: score,
+        mistakes: mistakes,
+        missed: missed,
+        rt: avg
+    };
+
+    // 執行發送
+    uploadRecord(finalData);
+
+    // ... 原本顯示結果畫面的代碼 ...
+    document.getElementById("res-score").innerText = targetScore.toString().padStart(6, '0');
+    // (後略)
+}  
 </script>
 </body>
 </html>
