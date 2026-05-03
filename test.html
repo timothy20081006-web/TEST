@@ -145,17 +145,24 @@ let currentIsTarget, currentIsYellow, timer, startTime, reactionTimes = [];
 let lastWasTarget = false, isPractice = true;
 let tickerId = null;
 
-// 字母庫：拿掉 T，僅剩 AKMNVWY
 const FILTERED_LETTERS = "AKMNVWY"; 
 const PRACTICE_TOTAL = 20;
-
 const bgm = document.getElementById('bgmMusic');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const marioSprite = document.getElementById('mario-sprite');
 const scoreEl = document.getElementById("score-display");
+const topScoreEl = document.getElementById("top-score");
 const modeTag = document.getElementById("mode-tag");
 
-function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+// 初始化顯示最高分
+window.onload = () => {
+    const top = localStorage.getItem("mario_top_score") || "0";
+    topScoreEl.innerText = top.padStart(6, '0');
+};
+
+function resumeAudio() { 
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+}
 
 function showRules() {
     resumeAudio();
@@ -182,12 +189,15 @@ function startFinalChallenge() {
     isPractice = false;
     modeTag.style.display = "none";
     sounds.levelUp();
+    startScoreTicker(); // 確保正式挑戰也會更新分數顯示
     nextRound();
 }
 
 function resetStats() {
     score = 0; targetScore = 0; currentDisplayScore = 0; mistakes = 0; missed = 0; total = 0;
     reactionTimes = []; running = true;
+    scoreEl.innerText = "000000";
+    document.getElementById("progress-bar").style.width = "0%";
 }
 
 function showFeedback(text, color) {
@@ -222,8 +232,9 @@ function playTone(freq, type, duration, vol) {
 }
 
 function nextRound() {
+    if (!running) return;
+
     if (isPractice && total >= PRACTICE_TOTAL) {
-        running = false;
         const avg = reactionTimes.length ? (reactionTimes.reduce((a,b)=>a+b)/reactionTimes.length).toFixed(0) : "---";
         document.getElementById("prac-hit").innerText = score;
         document.getElementById("prac-mistake").innerText = mistakes;
@@ -321,6 +332,7 @@ function processHit() {
 }
 
 function startScoreTicker() {
+    if (tickerId) clearInterval(tickerId);
     tickerId = setInterval(() => {
         if (currentDisplayScore < targetScore) {
             currentDisplayScore += Math.ceil((targetScore - currentDisplayScore) / 5);
@@ -329,59 +341,66 @@ function startScoreTicker() {
     }, 20);
 }
 
-function endTest() {
-    running = false; clearInterval(tickerId); bgm.pause();
-    const avg = reactionTimes.length ? (reactionTimes.reduce((a,b)=>a+b)/reactionTimes.length).toFixed(0) : "---";
-    document.getElementById("res-score").innerText = targetScore.toString().padStart(6, '0');
-    document.getElementById("res-hit").innerText = score;
-    document.getElementById("res-mistake").innerText = mistakes;
-    document.getElementById("res-missed").innerText = missed;
-    document.getElementById("res-rt-final").innerText = avg + "ms";
-    document.getElementById("letter").style.display = "none";
-    document.getElementById("result-screen").style.display = "flex";
-    
-    const top = localStorage.getItem("mario_top_score") || 0;
-    if (targetScore > top) localStorage.setItem("mario_top_score", targetScore);
-}
-
-window.addEventListener("mousedown", (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
-window.addEventListener("touchstart", (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, {passive: false});
-// 1. 在 script 中加入這個發送函式
+// 數據上傳函式
 function uploadRecord(finalData) {
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbx3Z_y1_Px-_vNSJMUjVKfYq_s9ezkXteNy_Go63RHR8UfNGeUocaEzpDC0H8-2FQM/exec'; // 貼上剛剛複製的 URL
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbx3Z_y1_Px-_vNSJMUjVKfYq_s9ezkXteNy_Go63RHR8UfNGeUocaEzpDC0H8-2FQM/exec';
+    
+    const params = new URLSearchParams();
+    for (const key in finalData) {
+        params.append(key, finalData[key]);
+    }
 
     fetch(scriptURL, {
         method: 'POST',
-        mode: 'no-cors', // 這是為了避開跨網域問題
-        cache: 'no-cache',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalData)
+        mode: 'no-cors',
+        body: params
     })
-    .then(() => console.log("Data sent!"))
+    .then(() => console.log("Data sent to Google Sheets!"))
     .catch(error => console.error('Error!', error.message));
 }
 
-// 2. 找到你的 endTest() 函式，在裡面計算完數據後加入呼叫
+// 結束遊戲函式 (已整合 UI 與上傳)
 function endTest() {
-    running = false; clearInterval(tickerId); bgm.pause();
+    running = false; 
+    if (tickerId) clearInterval(tickerId); 
+    bgm.pause();
+    
     const avg = reactionTimes.length ? (reactionTimes.reduce((a,b)=>a+b)/reactionTimes.length).toFixed(0) : "---";
     
-    // 準備要發送的資料包
+    // 1. 準備並執行上傳
     const finalData = {
         score: targetScore,
         hits: score,
         mistakes: mistakes,
         missed: missed,
-        rt: avg
+        rt: avg,
+        date: new Date().toLocaleString()
     };
-
-    // 執行發送
     uploadRecord(finalData);
 
-    // ... 原本顯示結果畫面的代碼 ...
+    // 2. 更新 UI 畫面
     document.getElementById("res-score").innerText = targetScore.toString().padStart(6, '0');
-    // (後略)
-}  
+    document.getElementById("res-hit").innerText = score;
+    document.getElementById("res-mistake").innerText = mistakes;
+    document.getElementById("res-missed").innerText = missed;
+    document.getElementById("res-rt-final").innerText = avg + "ms";
+    
+    document.getElementById("letter").style.display = "none";
+    document.getElementById("mode-tag").style.display = "none";
+    document.getElementById("result-screen").style.display = "flex";
+    
+    // 3. 更新最高分
+    const top = parseInt(localStorage.getItem("mario_top_score") || "0");
+    if (targetScore > top) {
+        localStorage.setItem("mario_top_score", targetScore.toString());
+        topScoreEl.innerText = targetScore.toString().padStart(6, '0');
+    }
+}
+
+window.addEventListener("mousedown", (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
+window.addEventListener("touchstart", (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, {passive: false});
+
 </script>
 </body>
 </html>
+
